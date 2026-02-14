@@ -17,22 +17,24 @@ func (s *Snap) IsAvailable(_ detect.OSInfo) bool {
 
 func (s *Snap) Apply(cfg *config.Config) error {
 	certPath := config.ExpandPath(cfg.CACert)
-	fmt.Println("\n[sudo required] To configure snap proxy, run:")
-	fmt.Printf("  sudo snap set system proxy.http=\"%s\"\n", cfg.Proxy.HTTP)
-	fmt.Printf("  sudo snap set system proxy.https=\"%s\"\n", cfg.Proxy.HTTPS)
-	if certPath != "" {
-		fmt.Printf("  sudo snap set system store-certs.ezproxy=\"$(cat %s)\"\n", certPath)
-		fmt.Println("Note: CA cert support requires snapd 2.45+.")
+	cmds := []string{
+		fmt.Sprintf("snap set system proxy.http=%s", shellQuote(cfg.Proxy.HTTP)),
+		fmt.Sprintf("snap set system proxy.https=%s", shellQuote(cfg.Proxy.HTTPS)),
 	}
-	return nil
+	if certPath != "" {
+		cmds = append(cmds,
+			fmt.Sprintf("snap set system store-certs.ezproxy=\"$(cat %s)\"", shellQuote(certPath)),
+		)
+	}
+	return runSudoCommands(s.Name(), cmds)
 }
 
 func (s *Snap) Remove() error {
-	fmt.Println("\n[sudo required] To remove snap proxy config, run:")
-	fmt.Println("  sudo snap unset system proxy.http")
-	fmt.Println("  sudo snap unset system proxy.https")
-	fmt.Println("  sudo snap unset system store-certs.ezproxy")
-	return nil
+	return runSudoRemoveCommands(s.Name(), []string{
+		"snap unset system proxy.http",
+		"snap unset system proxy.https",
+		"snap unset system store-certs.ezproxy",
+	})
 }
 
 func (s *Snap) Status(cfg *config.Config) (string, error) {

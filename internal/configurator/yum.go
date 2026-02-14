@@ -2,6 +2,8 @@ package configurator
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/andrew/ezproxy/internal/config"
 	"github.com/andrew/ezproxy/internal/detect"
@@ -15,27 +17,46 @@ func (y *Yum) IsAvailable(_ detect.OSInfo) bool {
 	return detect.IsCommandAvailable("yum") || detect.IsCommandAvailable("dnf")
 }
 
+func (y *Yum) confFile() string {
+	if detect.IsCommandAvailable("dnf") {
+		return "/etc/dnf/dnf.conf"
+	}
+	return "/etc/yum.conf"
+}
+
 func (y *Yum) Apply(cfg *config.Config) error {
 	certPath := config.ExpandPath(cfg.CACert)
-	confFile := "/etc/yum.conf"
-	if detect.IsCommandAvailable("dnf") {
-		confFile = "/etc/dnf/dnf.conf"
+	confFile := y.confFile()
+
+	// Build sed commands to add/update proxy lines in the [main] section
+	cmds := []string{
+		fmt.Sprintf("grep -q '^proxy=' %s && sed -i 's|^proxy=.*|proxy=%s|' %s || echo 'proxy=%s' >> %s",
+			confFile, cfg.Proxy.HTTP, confFile, cfg.Proxy.HTTP, confFile),
+	}
+	if certPath != "" {
+		cmds = append(cmds,
+			fmt.Sprintf("grep -q '^sslcacert=' %s && sed -i 's|^sslcacert=.*|sslcacert=%s|' %s || echo 'sslcacert=%s' >> %s",
+				confFile, certPath, confFile, certPath, confFile),
+		)
 	}
 
-	fmt.Printf("\n[sudo required] To configure yum/dnf proxy, add to %s:\n", confFile)
-	fmt.Printf("  proxy=%s\n", cfg.Proxy.HTTP)
-	if certPath != "" {
-		fmt.Printf("  sslcacert=%s\n", certPath)
-	}
-	fmt.Println("Also handled by system CA store (update-ca-trust).")
-	return nil
+	return runSudoCommands(y.Name(), cmds)
 }
 
 func (y *Yum) Remove() error {
-	fmt.Println("\n[manual] Remove proxy= and sslcacert= lines from /etc/yum.conf or /etc/dnf/dnf.conf")
-	return nil
+	confFile := y.confFile()
+	return runSudoRemoveCommands(y.Name(), []string{
+		fmt.Sprintf("sed -i '/^proxy=/d; /^sslcacert=/d' %s", confFile),
+	})
 }
 
 func (y *Yum) Status(cfg *config.Config) (string, error) {
-	return "unknown (check manually)", nil
+	data, err := os.ReadFile(y.confFile())
+	if err != nil {
+		return "not configured", nil
+	}
+	if strings.Contains(string(data), "proxy=") {
+		return "configured", nil
+	}
+	return "not configured", nil
 }
