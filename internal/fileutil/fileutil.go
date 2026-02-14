@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+// DryRun controls whether file operations are performed or just previewed.
+// When true, UpsertMarkerBlock and RemoveMarkerBlock print what they would
+// do instead of modifying files.
+var DryRun bool
+
 const (
 	markerStart = ">>> ezproxy >>>"
 	markerEnd   = "<<< ezproxy <<<"
@@ -21,6 +26,24 @@ func endMarker(comment string) string {
 }
 
 func UpsertMarkerBlock(path string, content string, comment string) error {
+	block := fmt.Sprintf("%s\n%s%s\n", startMarker(comment), content, endMarker(comment))
+
+	if DryRun {
+		exists := "create"
+		if _, err := os.Stat(path); err == nil {
+			if HasMarkerBlock(path, comment) {
+				exists = "update"
+			} else {
+				exists = "append to"
+			}
+		}
+		fmt.Printf("\n  [dry-run] Would %s %s:\n", exists, path)
+		for _, line := range strings.Split(strings.TrimRight(block, "\n"), "\n") {
+			fmt.Printf("    %s\n", line)
+		}
+		return nil
+	}
+
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
@@ -29,8 +52,6 @@ func UpsertMarkerBlock(path string, content string, comment string) error {
 	if data, err := os.ReadFile(path); err == nil {
 		existing = string(data)
 	}
-
-	block := fmt.Sprintf("%s\n%s%s\n", startMarker(comment), content, endMarker(comment))
 
 	start := startMarker(comment)
 	end := endMarker(comment)
@@ -58,6 +79,13 @@ func UpsertMarkerBlock(path string, content string, comment string) error {
 }
 
 func RemoveMarkerBlock(path string, comment string) error {
+	if DryRun {
+		if HasMarkerBlock(path, comment) {
+			fmt.Printf("\n  [dry-run] Would remove ezproxy block from %s\n", path)
+		}
+		return nil
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

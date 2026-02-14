@@ -6,9 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/andrew/ezproxy/internal/config"
 	"github.com/andrew/ezproxy/internal/detect"
+	"github.com/andrew/ezproxy/internal/fileutil"
 )
 
 type Docker struct {
@@ -53,6 +55,23 @@ func (d *Docker) Apply(cfg *config.Config) error {
 func (d *Docker) applyClientConfig(cfg *config.Config) error {
 	path := d.getConfigPath()
 
+	proxies := map[string]interface{}{
+		"default": map[string]interface{}{
+			"httpProxy":  cfg.Proxy.HTTP,
+			"httpsProxy": cfg.Proxy.HTTPS,
+			"noProxy":    cfg.Proxy.NoProxy,
+		},
+	}
+
+	if fileutil.DryRun {
+		data, _ := json.MarshalIndent(map[string]interface{}{"proxies": proxies}, "", "  ")
+		fmt.Printf("\n  [dry-run] Would merge into %s:\n", path)
+		for _, line := range strings.Split(string(data), "\n") {
+			fmt.Printf("    %s\n", line)
+		}
+		return nil
+	}
+
 	// Read existing config
 	var dockerConfig map[string]interface{}
 	if data, err := os.ReadFile(path); err == nil {
@@ -63,14 +82,6 @@ func (d *Docker) applyClientConfig(cfg *config.Config) error {
 		dockerConfig = make(map[string]interface{})
 	}
 
-	// Set proxies
-	proxies := map[string]interface{}{
-		"default": map[string]interface{}{
-			"httpProxy":  cfg.Proxy.HTTP,
-			"httpsProxy": cfg.Proxy.HTTPS,
-			"noProxy":    cfg.Proxy.NoProxy,
-		},
-	}
 	dockerConfig["proxies"] = proxies
 
 	// Write back
@@ -98,6 +109,12 @@ func (d *Docker) printDaemonInstructions(cfg *config.Config) {
 
 func (d *Docker) Remove() error {
 	path := d.getConfigPath()
+
+	if fileutil.DryRun {
+		fmt.Printf("\n  [dry-run] Would remove \"proxies\" key from %s\n", path)
+		return nil
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

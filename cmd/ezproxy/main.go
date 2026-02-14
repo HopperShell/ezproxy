@@ -11,12 +11,22 @@ import (
 	"github.com/andrew/ezproxy/internal/config"
 	"github.com/andrew/ezproxy/internal/configurator"
 	"github.com/andrew/ezproxy/internal/detect"
+	"github.com/andrew/ezproxy/internal/fileutil"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: ezproxy <init|apply|remove|status>")
+		fmt.Println("Usage: ezproxy <init|apply|remove|status> [--dry-run]")
 		os.Exit(1)
+	}
+
+	// Check for --dry-run flag anywhere in args
+	for i, arg := range os.Args {
+		if arg == "--dry-run" {
+			fileutil.DryRun = true
+			os.Args = append(os.Args[:i], os.Args[i+1:]...)
+			break
+		}
 	}
 
 	switch os.Args[1] {
@@ -57,7 +67,11 @@ func cmdApply() {
 	cfg := loadConfig()
 	osInfo := detect.DetectOS()
 
-	fmt.Println("Applying proxy configuration...")
+	if fileutil.DryRun {
+		fmt.Println("DRY RUN: showing what would be configured (no files modified)")
+	} else {
+		fmt.Println("Applying proxy configuration...")
+	}
 
 	for _, c := range configurator.All() {
 		enabled, exists := cfg.Tools[c.Name()]
@@ -76,14 +90,20 @@ func cmdApply() {
 		}
 	}
 
-	fmt.Println("\nDone! Restart your shell or run 'source ~/.bashrc' (or ~/.zshrc) to apply env vars.")
+	if !fileutil.DryRun {
+		fmt.Println("\nDone! Restart your shell or run 'source ~/.bashrc' (or ~/.zshrc) to apply env vars.")
+	}
 }
 
 func cmdRemove() {
 	cfg := loadConfig()
 	osInfo := detect.DetectOS()
 
-	fmt.Println("Removing proxy configuration...")
+	if fileutil.DryRun {
+		fmt.Println("DRY RUN: showing what would be removed (no files modified)")
+	} else {
+		fmt.Println("Removing proxy configuration...")
+	}
 
 	for _, c := range configurator.All() {
 		enabled, exists := cfg.Tools[c.Name()]
@@ -100,7 +120,9 @@ func cmdRemove() {
 		}
 	}
 
-	fmt.Println("\nDone! Restart your shell to apply changes.")
+	if !fileutil.DryRun {
+		fmt.Println("\nDone! Restart your shell to apply changes.")
+	}
 }
 
 func cmdStatus() {

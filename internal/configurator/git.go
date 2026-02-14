@@ -1,11 +1,13 @@
 package configurator
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 
 	"github.com/andrew/ezproxy/internal/config"
 	"github.com/andrew/ezproxy/internal/detect"
+	"github.com/andrew/ezproxy/internal/fileutil"
 )
 
 type Git struct{}
@@ -26,6 +28,14 @@ func (g *Git) Apply(cfg *config.Config) error {
 		cmds = append(cmds, []string{"git", "config", "--global", "http.sslCAInfo", certPath})
 	}
 
+	if fileutil.DryRun {
+		fmt.Println("\n  [dry-run] Would run:")
+		for _, args := range cmds {
+			fmt.Printf("    %s\n", strings.Join(args, " "))
+		}
+		return nil
+	}
+
 	for _, args := range cmds {
 		if err := exec.Command(args[0], args[1:]...).Run(); err != nil {
 			return err
@@ -36,6 +46,13 @@ func (g *Git) Apply(cfg *config.Config) error {
 
 func (g *Git) Remove() error {
 	keys := []string{"http.proxy", "http.sslCAInfo"}
+	if fileutil.DryRun {
+		fmt.Println("\n  [dry-run] Would run:")
+		for _, key := range keys {
+			fmt.Printf("    git config --global --unset %s\n", key)
+		}
+		return nil
+	}
 	for _, key := range keys {
 		exec.Command("git", "config", "--global", "--unset", key).Run()
 	}
