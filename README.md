@@ -28,6 +28,83 @@ make build
 ## Quick start
 
 ```bash
+ezproxy init         # interactive setup
+ezproxy apply        # configure everything
+ezproxy status       # check what's configured
+```
+
+### Setup wizard
+
+`ezproxy init` walks you through configuration with an interactive TUI:
+
+```
+  HTTP Proxy URL
+  > http://proxy.corp.com:8080
+
+  HTTPS Proxy URL
+  > http://proxy.corp.com:8080
+
+  NO_PROXY
+  > localhost,127.0.0.1,.corp.com,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+  CA Certificate Path
+  >
+```
+
+Then select which tools to configure — installed tools are pre-selected, use space to toggle:
+
+```
+  Tools to configure
+  Use arrow keys to navigate, space to toggle, enter to confirm.
+
+  [x] env_vars
+  [x] git
+  [x] pip
+  [x] npm
+  [x] yarn
+  [x] docker
+  [ ] podman (not installed)
+  [x] curl
+  [x] wget
+  [x] cargo
+  [ ] conda (not installed)
+  [x] go
+  [ ] gradle (not installed)
+  [ ] maven (not installed)
+  [x] bundler
+  [x] brew
+  [ ] snap (not installed)
+  [ ] apt (not installed)
+  [ ] yum (not installed)
+  [ ] ssh
+  [x] system_ca
+```
+
+### Status view
+
+```
+$ ezproxy status
+
+Proxy:    http://proxy.corp.com:8080
+NO_PROXY: localhost,127.0.0.1,.corp.com,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+CA Cert:  ~/.ezproxy/corp-ca.pem
+
+Tool           Status                       Available
+────           ──────                       ─────────
+system_ca      trusted by system            yes
+env_vars       configured                   yes
+git            configured                   yes
+pip            configured                   yes
+npm            configured                   yes
+docker         configured                   yes
+go             GOPRIVATE=github.com/corp/*  yes
+gradle         skipped                      no (not installed)
+ssh            disabled                     -
+```
+
+## Usage
+
+```bash
 # Interactive setup - prompts for proxy URL, cert, and tool selection
 ezproxy init
 
