@@ -12,6 +12,10 @@ import (
 // do instead of modifying files.
 var DryRun bool
 
+// AutoYes skips interactive confirmations (e.g. sudo prompts).
+// Set via --yes flag for scripted/automated use.
+var AutoYes bool
+
 const (
 	markerStart = ">>> ezproxy >>>"
 	markerEnd   = "<<< ezproxy <<<"
