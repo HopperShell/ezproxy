@@ -53,16 +53,53 @@ func IsCommandAvailable(name string) bool {
 	return err == nil
 }
 
+// DetectShell returns the name of the user's login shell (e.g. "zsh", "bash", "fish").
+// It checks $SHELL first, then falls back to looking at running processes.
+func DetectShell() string {
+	shell := os.Getenv("SHELL")
+	if shell != "" {
+		return filepath.Base(shell)
+	}
+	return ""
+}
+
+// ShellProfiles returns the profile files that should be modified for the
+// user's detected shell. Only returns files for the user's actual shell,
+// plus .profile for POSIX login shell compatibility.
 func ShellProfiles() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil
 	}
 
-	candidates := []string{
-		filepath.Join(home, ".bashrc"),
-		filepath.Join(home, ".zshrc"),
-		filepath.Join(home, ".profile"),
+	shell := DetectShell()
+
+	var candidates []string
+	switch shell {
+	case "zsh":
+		candidates = []string{
+			filepath.Join(home, ".zshrc"),
+			filepath.Join(home, ".zprofile"),
+		}
+	case "bash":
+		candidates = []string{
+			filepath.Join(home, ".bashrc"),
+			filepath.Join(home, ".bash_profile"),
+		}
+		// If neither .bashrc nor .bash_profile exist, fall back to .profile
+		// (.profile is read by bash login shells when .bash_profile is absent)
+	case "fish":
+		candidates = []string{
+			filepath.Join(home, ".config", "fish", "conf.d", "ezproxy.fish"),
+		}
+	default:
+		// Unknown shell — try common profile files that exist
+		candidates = []string{
+			filepath.Join(home, ".profile"),
+			filepath.Join(home, ".bashrc"),
+			filepath.Join(home, ".bash_profile"),
+			filepath.Join(home, ".zshrc"),
+		}
 	}
 
 	var profiles []string
@@ -71,5 +108,20 @@ func ShellProfiles() []string {
 			profiles = append(profiles, p)
 		}
 	}
+
+	// For bash: if no bash-specific files exist, fall back to .profile
+	if shell == "bash" && len(profiles) == 0 {
+		profile := filepath.Join(home, ".profile")
+		if _, err := os.Stat(profile); err == nil {
+			profiles = append(profiles, profile)
+		}
+	}
+
 	return profiles
+}
+
+// IsFishShell returns true if the user's shell is fish.
+// Fish uses different syntax (set -gx instead of export).
+func IsFishShell() bool {
+	return DetectShell() == "fish"
 }

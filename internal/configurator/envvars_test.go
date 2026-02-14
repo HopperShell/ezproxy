@@ -70,6 +70,40 @@ func TestEnvVarsRemove(t *testing.T) {
 	}
 }
 
+func TestEnvVarsApplyFish(t *testing.T) {
+	dir := t.TempDir()
+	fishConf := filepath.Join(dir, "ezproxy.fish")
+	os.WriteFile(fishConf, []byte(""), 0644)
+
+	t.Setenv("SHELL", "/usr/bin/fish")
+
+	e := &EnvVars{profiles: []string{fishConf}}
+	cfg := &config.Config{
+		Proxy: config.ProxyConfig{
+			HTTP:    "http://proxy:8080",
+			HTTPS:   "http://proxy:8080",
+			NoProxy: "localhost",
+		},
+		CACert: "/tmp/ca.pem",
+	}
+
+	if err := e.Apply(cfg); err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+
+	data, _ := os.ReadFile(fishConf)
+	got := string(data)
+	if !strings.Contains(got, "set -gx HTTP_PROXY http://proxy:8080") {
+		t.Error("missing fish HTTP_PROXY")
+	}
+	if !strings.Contains(got, "set -gx NODE_EXTRA_CA_CERTS /tmp/ca.pem") {
+		t.Error("missing fish NODE_EXTRA_CA_CERTS")
+	}
+	if strings.Contains(got, "export ") {
+		t.Error("fish config should not contain 'export'")
+	}
+}
+
 func TestEnvVarsApplyIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	bashrc := filepath.Join(dir, ".bashrc")
