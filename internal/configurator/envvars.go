@@ -26,21 +26,14 @@ func (e *EnvVars) getProfiles() []string {
 
 func (e *EnvVars) Apply(cfg *config.Config) error {
 	certPath := config.ExpandPath(cfg.CACert)
+	isFish := detect.IsFishShell()
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "export HTTP_PROXY=%s\n", cfg.Proxy.HTTP)
-	fmt.Fprintf(&b, "export HTTPS_PROXY=%s\n", cfg.Proxy.HTTPS)
-	fmt.Fprintf(&b, "export http_proxy=%s\n", cfg.Proxy.HTTP)
-	fmt.Fprintf(&b, "export https_proxy=%s\n", cfg.Proxy.HTTPS)
-	fmt.Fprintf(&b, "export NO_PROXY=%s\n", cfg.Proxy.NoProxy)
-	fmt.Fprintf(&b, "export no_proxy=%s\n", cfg.Proxy.NoProxy)
-	if certPath != "" {
-		fmt.Fprintf(&b, "export SSL_CERT_FILE=%s\n", certPath)
-		fmt.Fprintf(&b, "export REQUESTS_CA_BUNDLE=%s\n", certPath)
-		fmt.Fprintf(&b, "export CURL_CA_BUNDLE=%s\n", certPath)
-		fmt.Fprintf(&b, "export NODE_EXTRA_CA_CERTS=%s\n", certPath)
+	if isFish {
+		e.writeFishExports(&b, cfg, certPath)
+	} else {
+		e.writePosixExports(&b, cfg, certPath)
 	}
-	fmt.Fprintf(&b, "export HOMEBREW_CURLRC=1\n")
 
 	for _, profile := range e.getProfiles() {
 		if err := fileutil.UpsertMarkerBlock(profile, b.String(), "#"); err != nil {
@@ -48,6 +41,38 @@ func (e *EnvVars) Apply(cfg *config.Config) error {
 		}
 	}
 	return nil
+}
+
+func (e *EnvVars) writePosixExports(b *strings.Builder, cfg *config.Config, certPath string) {
+	fmt.Fprintf(b, "export HTTP_PROXY=%s\n", cfg.Proxy.HTTP)
+	fmt.Fprintf(b, "export HTTPS_PROXY=%s\n", cfg.Proxy.HTTPS)
+	fmt.Fprintf(b, "export http_proxy=%s\n", cfg.Proxy.HTTP)
+	fmt.Fprintf(b, "export https_proxy=%s\n", cfg.Proxy.HTTPS)
+	fmt.Fprintf(b, "export NO_PROXY=%s\n", cfg.Proxy.NoProxy)
+	fmt.Fprintf(b, "export no_proxy=%s\n", cfg.Proxy.NoProxy)
+	if certPath != "" {
+		fmt.Fprintf(b, "export SSL_CERT_FILE=%s\n", certPath)
+		fmt.Fprintf(b, "export REQUESTS_CA_BUNDLE=%s\n", certPath)
+		fmt.Fprintf(b, "export CURL_CA_BUNDLE=%s\n", certPath)
+		fmt.Fprintf(b, "export NODE_EXTRA_CA_CERTS=%s\n", certPath)
+	}
+	fmt.Fprintf(b, "export HOMEBREW_CURLRC=1\n")
+}
+
+func (e *EnvVars) writeFishExports(b *strings.Builder, cfg *config.Config, certPath string) {
+	fmt.Fprintf(b, "set -gx HTTP_PROXY %s\n", cfg.Proxy.HTTP)
+	fmt.Fprintf(b, "set -gx HTTPS_PROXY %s\n", cfg.Proxy.HTTPS)
+	fmt.Fprintf(b, "set -gx http_proxy %s\n", cfg.Proxy.HTTP)
+	fmt.Fprintf(b, "set -gx https_proxy %s\n", cfg.Proxy.HTTPS)
+	fmt.Fprintf(b, "set -gx NO_PROXY %s\n", cfg.Proxy.NoProxy)
+	fmt.Fprintf(b, "set -gx no_proxy %s\n", cfg.Proxy.NoProxy)
+	if certPath != "" {
+		fmt.Fprintf(b, "set -gx SSL_CERT_FILE %s\n", certPath)
+		fmt.Fprintf(b, "set -gx REQUESTS_CA_BUNDLE %s\n", certPath)
+		fmt.Fprintf(b, "set -gx CURL_CA_BUNDLE %s\n", certPath)
+		fmt.Fprintf(b, "set -gx NODE_EXTRA_CA_CERTS %s\n", certPath)
+	}
+	fmt.Fprintf(b, "set -gx HOMEBREW_CURLRC 1\n")
 }
 
 func (e *EnvVars) Remove() error {
