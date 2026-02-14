@@ -2,6 +2,7 @@ package configurator
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/andrew/ezproxy/internal/config"
 	"github.com/andrew/ezproxy/internal/detect"
@@ -16,19 +17,24 @@ func (a *Apt) IsAvailable(osInfo detect.OSInfo) bool {
 }
 
 func (a *Apt) Apply(cfg *config.Config) error {
-	fmt.Println("\n[sudo required] To configure apt proxy, run:")
-	fmt.Printf("  echo 'Acquire::http::Proxy \"%s/\";' | sudo tee /etc/apt/apt.conf.d/99ezproxy\n", cfg.Proxy.HTTP)
-	fmt.Printf("  echo 'Acquire::https::Proxy \"%s/\";' | sudo tee -a /etc/apt/apt.conf.d/99ezproxy\n", cfg.Proxy.HTTPS)
-	fmt.Println("Note: CA handled by system CA store (update-ca-certificates).")
-	return nil
+	content := fmt.Sprintf("Acquire::http::Proxy \"%s\";\nAcquire::https::Proxy \"%s\";\n", cfg.Proxy.HTTP, cfg.Proxy.HTTPS)
+	return runSudoCommands(a.Name(), []string{
+		fmt.Sprintf("printf '%s' > /etc/apt/apt.conf.d/99ezproxy", content),
+	})
 }
 
 func (a *Apt) Remove() error {
-	fmt.Println("\n[sudo required] To remove apt proxy config, run:")
-	fmt.Println("  sudo rm -f /etc/apt/apt.conf.d/99ezproxy")
-	return nil
+	if _, err := os.Stat("/etc/apt/apt.conf.d/99ezproxy"); os.IsNotExist(err) {
+		return nil
+	}
+	return runSudoRemoveCommands(a.Name(), []string{
+		"rm -f /etc/apt/apt.conf.d/99ezproxy",
+	})
 }
 
 func (a *Apt) Status(cfg *config.Config) (string, error) {
-	return "unknown (check manually)", nil
+	if _, err := os.Stat("/etc/apt/apt.conf.d/99ezproxy"); err == nil {
+		return "configured", nil
+	}
+	return "not configured", nil
 }

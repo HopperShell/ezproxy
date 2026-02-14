@@ -39,7 +39,9 @@ func (d *Docker) Apply(cfg *config.Config) error {
 
 	// Daemon config (Linux only)
 	if runtime.GOOS == "linux" {
-		d.printDaemonInstructions(cfg)
+		if err := d.applyDaemonConfig(cfg); err != nil {
+			fmt.Printf("  docker daemon: %v\n", err)
+		}
 	} else if runtime.GOOS == "darwin" {
 		fmt.Println("\n[Docker Desktop - macOS]")
 		fmt.Println("Configure proxy via: Docker Desktop > Settings > Resources > Proxies")
@@ -95,16 +97,14 @@ func (d *Docker) applyClientConfig(cfg *config.Config) error {
 	return os.WriteFile(path, append(data, '\n'), 0644)
 }
 
-func (d *Docker) printDaemonInstructions(cfg *config.Config) {
-	fmt.Println("\n[sudo required] To configure Docker daemon proxy, run:")
-	fmt.Println("  sudo mkdir -p /etc/systemd/system/docker.service.d")
-	fmt.Printf("  sudo tee /etc/systemd/system/docker.service.d/ezproxy.conf <<EOF\n")
-	fmt.Println("[Service]")
-	fmt.Printf("Environment=\"HTTP_PROXY=%s\"\n", cfg.Proxy.HTTP)
-	fmt.Printf("Environment=\"HTTPS_PROXY=%s\"\n", cfg.Proxy.HTTPS)
-	fmt.Printf("Environment=\"NO_PROXY=%s\"\n", cfg.Proxy.NoProxy)
-	fmt.Println("EOF")
-	fmt.Println("  sudo systemctl daemon-reload && sudo systemctl restart docker")
+func (d *Docker) applyDaemonConfig(cfg *config.Config) error {
+	content := fmt.Sprintf("[Service]\nEnvironment=\"HTTP_PROXY=%s\"\nEnvironment=\"HTTPS_PROXY=%s\"\nEnvironment=\"NO_PROXY=%s\"\n",
+		cfg.Proxy.HTTP, cfg.Proxy.HTTPS, cfg.Proxy.NoProxy)
+	return runSudoCommands("docker daemon", []string{
+		"mkdir -p /etc/systemd/system/docker.service.d",
+		fmt.Sprintf("printf '%s' > /etc/systemd/system/docker.service.d/ezproxy.conf", content),
+		"systemctl daemon-reload && systemctl restart docker",
+	})
 }
 
 func (d *Docker) Remove() error {
