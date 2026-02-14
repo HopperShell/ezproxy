@@ -18,3 +18,25 @@ type Configurator interface {
 	// Status returns "configured", "not configured", or "stale".
 	Status(cfg *config.Config) (string, error)
 }
+
+// All returns all registered configurators in apply order.
+func All() []Configurator {
+	return []Configurator{
+		&SystemCA{},
+		&EnvVars{},
+		&Git{},
+		&Pip{},
+		&Npm{},
+		&Yarn{},
+		&Docker{},
+		&Curl{},
+		&Wget{},
+		&Cargo{},
+		&Conda{},
+		&Brew{},
+		&Snap{},
+		&Apt{},
+		&Yum{},
+		&SSH{},
+	}
+}
