@@ -225,6 +225,36 @@ func cmdInit() {
 		fmt.Printf("  Copied cert to %s\n", destCert)
 	}
 
+	// Tool selection
+	tools := config.DefaultTools()
+	osInfo := detect.DetectOS()
+	allConfigurators := configurator.All()
+
+	fmt.Println("\nTools (all enabled by default):")
+	for _, c := range allConfigurators {
+		installed := c.IsAvailable(osInfo)
+		status := "✓"
+		note := ""
+		if !installed {
+			note = " (not installed)"
+		}
+		fmt.Printf("  [%s] %-12s%s\n", status, c.Name(), note)
+	}
+
+	fmt.Print("\nDisable any tools? (comma-separated names, or Enter to keep all): ")
+	scanner.Scan()
+	disableInput := strings.TrimSpace(scanner.Text())
+	if disableInput != "" {
+		for _, name := range strings.Split(disableInput, ",") {
+			name = strings.TrimSpace(name)
+			if _, exists := tools[name]; exists {
+				tools[name] = false
+			} else {
+				fmt.Fprintf(os.Stderr, "  Warning: unknown tool %q, skipping\n", name)
+			}
+		}
+	}
+
 	cfg := &config.Config{
 		Proxy: config.ProxyConfig{
 			HTTP:    httpProxy,
@@ -232,7 +262,7 @@ func cmdInit() {
 			NoProxy: noProxy,
 		},
 		CACert: caCertConfig,
-		Tools:  config.DefaultTools(),
+		Tools:  tools,
 	}
 
 	cfgPath := configPath()
@@ -241,6 +271,22 @@ func cmdInit() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("\nConfig saved to %s\n", cfgPath)
-	fmt.Println("Run 'ezproxy apply' to configure all tools.")
+	// Show final summary
+	fmt.Printf("\nConfig saved to %s\n\n", cfgPath)
+	enabledCount := 0
+	disabledCount := 0
+	for _, v := range tools {
+		if v {
+			enabledCount++
+		} else {
+			disabledCount++
+		}
+	}
+	fmt.Printf("  %d tools enabled", enabledCount)
+	if disabledCount > 0 {
+		fmt.Printf(", %d disabled", disabledCount)
+	}
+	fmt.Println()
+	fmt.Println("\nRun 'ezproxy apply' to configure all tools.")
+	fmt.Println("Run 'ezproxy apply --dry-run' to preview changes first.")
 }
