@@ -30,7 +30,6 @@ func DefaultTools() map[string]bool {
 		"docker":    true,
 		"curl":      true,
 		"wget":      true,
-		"go":        true,
 		"cargo":     true,
 		"conda":     true,
 		"brew":      true,
