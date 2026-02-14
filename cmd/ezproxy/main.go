@@ -1,9 +1,16 @@
-// cmd/ezproxy/main.go
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/andrew/ezproxy/internal/config"
+	"github.com/andrew/ezproxy/internal/configurator"
+	"github.com/andrew/ezproxy/internal/detect"
 )
 
 func main() {
@@ -14,15 +21,197 @@ func main() {
 
 	switch os.Args[1] {
 	case "init":
-		fmt.Println("init: not yet implemented")
+		cmdInit()
 	case "apply":
-		fmt.Println("apply: not yet implemented")
+		cmdApply()
 	case "remove":
-		fmt.Println("remove: not yet implemented")
+		cmdRemove()
 	case "status":
-		fmt.Println("status: not yet implemented")
+		cmdStatus()
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		os.Exit(1)
 	}
+}
+
+func configPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".ezproxy", "config.yaml")
+}
+
+func loadConfig() *config.Config {
+	cfg, err := config.Load(configPath())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Run 'ezproxy init' to create a config file.\n")
+		os.Exit(1)
+	}
+	return cfg
+}
+
+func cmdApply() {
+	cfg := loadConfig()
+	osInfo := detect.DetectOS()
+
+	fmt.Println("Applying proxy configuration...\n")
+
+	for _, c := range configurator.All() {
+		enabled, exists := cfg.Tools[c.Name()]
+		if exists && !enabled {
+			fmt.Printf("  %-12s skipped (disabled)\n", c.Name())
+			continue
+		}
+		if !c.IsAvailable(osInfo) {
+			fmt.Printf("  %-12s skipped (not installed)\n", c.Name())
+			continue
+		}
+		if err := c.Apply(cfg); err != nil {
+			fmt.Printf("  %-12s ERROR: %v\n", c.Name(), err)
+		} else {
+			fmt.Printf("  %-12s ✓ configured\n", c.Name())
+		}
+	}
+
+	fmt.Println("\nDone! Restart your shell or run 'source ~/.bashrc' (or ~/.zshrc) to apply env vars.")
+}
+
+func cmdRemove() {
+	cfg := loadConfig()
+	osInfo := detect.DetectOS()
+
+	fmt.Println("Removing proxy configuration...\n")
+
+	for _, c := range configurator.All() {
+		enabled, exists := cfg.Tools[c.Name()]
+		if exists && !enabled {
+			continue
+		}
+		if !c.IsAvailable(osInfo) {
+			continue
+		}
+		if err := c.Remove(); err != nil {
+			fmt.Printf("  %-12s ERROR: %v\n", c.Name(), err)
+		} else {
+			fmt.Printf("  %-12s ✓ removed\n", c.Name())
+		}
+	}
+
+	fmt.Println("\nDone! Restart your shell to apply changes.")
+}
+
+func cmdStatus() {
+	cfg := loadConfig()
+	osInfo := detect.DetectOS()
+
+	fmt.Printf("%-14s %-28s %s\n", "Tool", "Status", "Available")
+	fmt.Printf("%-14s %-28s %s\n", "────", "──────", "─────────")
+
+	for _, c := range configurator.All() {
+		enabled, exists := cfg.Tools[c.Name()]
+		if exists && !enabled {
+			fmt.Printf("%-14s %-28s %s\n", c.Name(), "disabled", "-")
+			continue
+		}
+
+		available := c.IsAvailable(osInfo)
+		if !available {
+			fmt.Printf("%-14s %-28s %s\n", c.Name(), "skipped", "no (not installed)")
+			continue
+		}
+
+		status, err := c.Status(cfg)
+		if err != nil {
+			status = fmt.Sprintf("error: %v", err)
+		}
+		fmt.Printf("%-14s %-28s %s\n", c.Name(), status, "yes")
+	}
+}
+
+func cmdInit() {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	fmt.Println("ezproxy setup")
+	fmt.Println("=============\n")
+
+	// HTTP proxy
+	fmt.Print("HTTP proxy URL: ")
+	scanner.Scan()
+	httpProxy := strings.TrimSpace(scanner.Text())
+	if httpProxy == "" {
+		fmt.Fprintln(os.Stderr, "HTTP proxy URL is required.")
+		os.Exit(1)
+	}
+
+	// HTTPS proxy
+	fmt.Printf("HTTPS proxy URL [%s]: ", httpProxy)
+	scanner.Scan()
+	httpsProxy := strings.TrimSpace(scanner.Text())
+	if httpsProxy == "" {
+		httpsProxy = httpProxy
+	}
+
+	// NO_PROXY
+	defaultNoProxy := "localhost,127.0.0.1,.corp.com,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	fmt.Printf("NO_PROXY [%s]: ", defaultNoProxy)
+	scanner.Scan()
+	noProxy := strings.TrimSpace(scanner.Text())
+	if noProxy == "" {
+		noProxy = defaultNoProxy
+	}
+
+	// CA cert
+	fmt.Print("Path to CA certificate PEM file (optional, press Enter to skip): ")
+	scanner.Scan()
+	certInput := strings.TrimSpace(scanner.Text())
+
+	home, _ := os.UserHomeDir()
+	ezproxyDir := filepath.Join(home, ".ezproxy")
+	os.MkdirAll(ezproxyDir, 0755)
+
+	caCertConfig := ""
+	if certInput != "" {
+		certInput = config.ExpandPath(certInput)
+		destCert := filepath.Join(ezproxyDir, "corp-ca.pem")
+
+		src, err := os.Open(certInput)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading cert: %v\n", err)
+			os.Exit(1)
+		}
+		defer src.Close()
+
+		dst, err := os.Create(destCert)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating cert copy: %v\n", err)
+			os.Exit(1)
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, src); err != nil {
+			fmt.Fprintf(os.Stderr, "Error copying cert: %v\n", err)
+			os.Exit(1)
+		}
+
+		caCertConfig = "~/.ezproxy/corp-ca.pem"
+		fmt.Printf("  Copied cert to %s\n", destCert)
+	}
+
+	cfg := &config.Config{
+		Proxy: config.ProxyConfig{
+			HTTP:    httpProxy,
+			HTTPS:   httpsProxy,
+			NoProxy: noProxy,
+		},
+		CACert: caCertConfig,
+		Tools:  config.DefaultTools(),
+	}
+
+	cfgPath := configPath()
+	if err := config.Save(cfgPath, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\nConfig saved to %s\n", cfgPath)
+	fmt.Println("Run 'ezproxy apply' to configure all tools.")
 }
