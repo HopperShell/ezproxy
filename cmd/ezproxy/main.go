@@ -53,7 +53,7 @@ func cmdApply() {
 	cfg := loadConfig()
 	osInfo := detect.DetectOS()
 
-	fmt.Println("Applying proxy configuration...\n")
+	fmt.Println("Applying proxy configuration...")
 
 	for _, c := range configurator.All() {
 		enabled, exists := cfg.Tools[c.Name()]
@@ -79,7 +79,7 @@ func cmdRemove() {
 	cfg := loadConfig()
 	osInfo := detect.DetectOS()
 
-	fmt.Println("Removing proxy configuration...\n")
+	fmt.Println("Removing proxy configuration...")
 
 	for _, c := range configurator.All() {
 		enabled, exists := cfg.Tools[c.Name()]
@@ -131,7 +131,7 @@ func cmdInit() {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	fmt.Println("ezproxy setup")
-	fmt.Println("=============\n")
+	fmt.Println("=============")
 
 	// HTTP proxy
 	fmt.Print("HTTP proxy URL: ")
