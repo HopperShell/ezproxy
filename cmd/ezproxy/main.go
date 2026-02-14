@@ -35,7 +35,11 @@ func main() {
 }
 
 func configPath() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: cannot determine home directory: %v\n", err)
+		os.Exit(1)
+	}
 	return filepath.Join(home, ".ezproxy", "config.yaml")
 }
 
@@ -166,7 +170,10 @@ func cmdInit() {
 
 	home, _ := os.UserHomeDir()
 	ezproxyDir := filepath.Join(home, ".ezproxy")
-	os.MkdirAll(ezproxyDir, 0755)
+	if err := os.MkdirAll(ezproxyDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating directory %s: %v\n", ezproxyDir, err)
+		os.Exit(1)
+	}
 
 	caCertConfig := ""
 	if certInput != "" {
