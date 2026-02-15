@@ -14,7 +14,9 @@ import (
 // Bundler configures Ruby Bundler's SSL CA cert path.
 // Bundler uses HTTP_PROXY/HTTPS_PROXY from the environment (handled by env_vars),
 // but needs BUNDLE_SSL_CA_CERT for corporate proxy CA certs.
-type Bundler struct{}
+type Bundler struct {
+	path string // override for testing
+}
 
 func (b *Bundler) Name() string { return "bundler" }
 
@@ -23,6 +25,9 @@ func (b *Bundler) IsAvailable(_ detect.OSInfo) bool {
 }
 
 func (b *Bundler) configPath() string {
+	if b.path != "" {
+		return b.path
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".bundle", "config")
 }

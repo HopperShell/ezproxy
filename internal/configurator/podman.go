@@ -11,7 +11,9 @@ import (
 	"github.com/andrew/ezproxy/internal/fileutil"
 )
 
-type Podman struct{}
+type Podman struct {
+	path string // override for testing
+}
 
 func (p *Podman) Name() string { return "podman" }
 
@@ -20,6 +22,9 @@ func (p *Podman) IsAvailable(_ detect.OSInfo) bool {
 }
 
 func (p *Podman) configPath() string {
+	if p.path != "" {
+		return p.path
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "containers", "containers.conf")
 }

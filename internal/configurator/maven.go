@@ -12,7 +12,9 @@ import (
 	"github.com/andrew/ezproxy/internal/fileutil"
 )
 
-type Maven struct{}
+type Maven struct {
+	path string // override for testing
+}
 
 func (m *Maven) Name() string { return "maven" }
 
@@ -21,6 +23,9 @@ func (m *Maven) IsAvailable(_ detect.OSInfo) bool {
 }
 
 func (m *Maven) settingsPath() string {
+	if m.path != "" {
+		return m.path
+	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".m2", "settings.xml")
 }
