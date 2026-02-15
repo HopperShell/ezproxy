@@ -43,6 +43,7 @@ func DefaultTools() map[string]bool {
 		"yum":       true,
 		"ssh":       false,
 		"system_ca": true,
+		"java_ca":   true,
 	}
 }
 

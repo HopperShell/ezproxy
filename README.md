@@ -140,6 +140,7 @@ ezproxy apply --dry-run
 | **yum** | `/etc/yum.conf` or `/etc/dnf/dnf.conf` proxy lines |
 | **ssh** | `~/.ssh/config` ProxyCommand (disabled by default) |
 | **system_ca** | Installs CA cert into OS trust store (macOS Keychain / Linux ca-certificates) |
+| **java_ca** | Imports CA cert into JVM trust store (`keytool -importcert` into `cacerts`) |
 
 ## Commands
 

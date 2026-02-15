@@ -35,6 +35,7 @@ func All() []Configurator {
 		&Cargo{},
 		&Conda{},
 		&Golang{},
+		&JavaCA{},
 		&Gradle{},
 		&Maven{},
 		&Bundler{},

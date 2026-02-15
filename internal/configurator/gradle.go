@@ -12,7 +12,9 @@ import (
 	"github.com/andrew/ezproxy/internal/fileutil"
 )
 
-type Gradle struct{}
+type Gradle struct {
+	path string // override for testing
+}
 
 func (g *Gradle) Name() string { return "gradle" }
 
@@ -20,9 +22,16 @@ func (g *Gradle) IsAvailable(_ detect.OSInfo) bool {
 	return detect.IsCommandAvailable("gradle")
 }
 
-func (g *Gradle) Apply(cfg *config.Config) error {
+func (g *Gradle) getPath() string {
+	if g.path != "" {
+		return g.path
+	}
 	home, _ := os.UserHomeDir()
-	path := filepath.Join(home, ".gradle", "gradle.properties")
+	return filepath.Join(home, ".gradle", "gradle.properties")
+}
+
+func (g *Gradle) Apply(cfg *config.Config) error {
+	path := g.getPath()
 
 	httpHost, httpPort := parseProxyURL(cfg.Proxy.HTTP)
 	httpsHost, httpsPort := parseProxyURL(cfg.Proxy.HTTPS)
@@ -42,15 +51,11 @@ func (g *Gradle) Apply(cfg *config.Config) error {
 }
 
 func (g *Gradle) Remove() error {
-	home, _ := os.UserHomeDir()
-	path := filepath.Join(home, ".gradle", "gradle.properties")
-	return fileutil.RemoveMarkerBlock(path, "#")
+	return fileutil.RemoveMarkerBlock(g.getPath(), "#")
 }
 
 func (g *Gradle) Status(cfg *config.Config) (string, error) {
-	home, _ := os.UserHomeDir()
-	path := filepath.Join(home, ".gradle", "gradle.properties")
-	if fileutil.HasMarkerBlock(path, "#") {
+	if fileutil.HasMarkerBlock(g.getPath(), "#") {
 		return "configured", nil
 	}
 	return "not configured", nil
