@@ -1,5 +1,7 @@
 # ezproxy
 
+![Screenshot of my project](images/ezproxy.png)
+
 One command to configure corporate proxy settings across all your dev tools.
 
 If you've ever started at a new company and spent half a day configuring `git`, `npm`, `pip`, `docker`, and a dozen other tools to work behind a corporate proxy — this is for you.
